@@ -41,6 +41,19 @@ This will automatically:
 4. Artifacts are named `task-tracker-ubuntu-XX.XX-dev`
 5. Test thoroughly before creating a release
 
+## Troubleshooting
+
+### Build Failures
+
+**Common Issue**: `ModuleNotFoundError: No module named 'gi'`
+- **Cause**: GTK4 system packages not properly installed or accessible
+- **Solution**: The build script automatically detects CI environments and handles this
+
+**Build Script Features**:
+- **Local builds**: Uses virtual environment with system site packages
+- **CI builds**: Uses system Python directly with `--break-system-packages` flag
+- **Automatic detection**: Checks `CI` and `GITHUB_ACTIONS` environment variables
+
 ## Release Artifacts
 
 Each release will include:

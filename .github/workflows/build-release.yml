@@ -41,6 +41,11 @@ jobs:
           wmctrl \
           upx-ucl
           
+    - name: Verify GTK4 environment
+      run: |
+        echo "Verifying build environment..."
+        python3 -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk; print('✅ GTK4 ready for build')"
+          
     - name: Build executable
       run: |
         echo "Building Task Tracker executable..."

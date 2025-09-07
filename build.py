@@ -34,29 +34,60 @@ def main():
     project_root = Path(__file__).parent
     os.chdir(project_root)
     
-    # Setup virtual environment
-    venv_path = project_root / '.build-venv'
-    python_exe, pip_exe = setup_venv(venv_path)
+    # Detect if we're in a CI environment
+    is_ci = os.getenv('CI') == 'true' or os.getenv('GITHUB_ACTIONS') == 'true'
     
-    # Check if system has required packages
-    print("Checking system dependencies...")
-    try:
-        subprocess.check_call([str(python_exe), '-c', 'import gi; gi.require_version("Gtk", "4.0"); from gi.repository import Gtk'])
-        print("✅ GTK4 system packages found")
-    except subprocess.CalledProcessError:
-        print("❌ GTK4 system packages not found. Please install python3-gi and gir1.2-gtk-4.0")
-        print("Run: sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0")
-        return 1
-    
-    # Install only PyInstaller in venv (PyGObject comes from system)
-    print("Installing PyInstaller...")
-    subprocess.check_call([str(pip_exe), 'install', 'pyinstaller>=5.0.0', 'watchdog>=3.0.0'])
-    
-    # Get PyInstaller path in venv
-    if sys.platform == 'win32':
-        pyinstaller_exe = venv_path / 'Scripts' / 'pyinstaller.exe'
+    if is_ci:
+        print("🔧 CI environment detected - using system Python directly")
+        # In CI, use system Python directly to avoid venv issues with GTK4
+        python_exe = sys.executable
+        
+        # Check system dependencies
+        print("Checking system dependencies...")
+        try:
+            subprocess.check_call([python_exe, '-c', 'import gi; gi.require_version("Gtk", "4.0"); from gi.repository import Gtk'])
+            print("✅ GTK4 system packages found")
+        except subprocess.CalledProcessError:
+            print("❌ GTK4 system packages not found. Please install python3-gi and gir1.2-gtk-4.0")
+            print("Run: sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0")
+            return 1
+        
+        # Install PyInstaller in system Python (CI environment)
+        print("Installing PyInstaller in system Python...")
+        subprocess.check_call([
+            python_exe, '-m', 'pip', 'install', 
+            '--break-system-packages',  # Required for externally-managed environments like GitHub Actions
+            'pyinstaller>=5.0.0', 'watchdog>=3.0.0'
+        ])
+        
+        # Use system PyInstaller
+        pyinstaller_exe = 'pyinstaller'
+        
     else:
-        pyinstaller_exe = venv_path / 'bin' / 'pyinstaller'
+        print("🔧 Local environment detected - using virtual environment")
+        # Setup virtual environment for local builds
+        venv_path = project_root / '.build-venv'
+        python_exe, pip_exe = setup_venv(venv_path)
+        
+        # Check if system has required packages
+        print("Checking system dependencies...")
+        try:
+            subprocess.check_call([str(python_exe), '-c', 'import gi; gi.require_version("Gtk", "4.0"); from gi.repository import Gtk'])
+            print("✅ GTK4 system packages found")
+        except subprocess.CalledProcessError:
+            print("❌ GTK4 system packages not found. Please install python3-gi and gir1.2-gtk-4.0")
+            print("Run: sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0")
+            return 1
+        
+        # Install only PyInstaller in venv (PyGObject comes from system)
+        print("Installing PyInstaller...")
+        subprocess.check_call([str(pip_exe), 'install', 'pyinstaller>=5.0.0', 'watchdog>=3.0.0'])
+        
+        # Get PyInstaller path in venv
+        if sys.platform == 'win32':
+            pyinstaller_exe = venv_path / 'Scripts' / 'pyinstaller.exe'
+        else:
+            pyinstaller_exe = venv_path / 'bin' / 'pyinstaller'
     
     # Build command (simple approach - let PyInstaller auto-detect dependencies)
     build_cmd = [
