@@ -26,30 +26,28 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-        
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
+          python3 \
+          python3-pip \
           python3-gi \
           python3-gi-cairo \
+          python3-dev \
           gir1.2-gtk-4.0 \
           wmctrl \
           upx-ucl
           
-    - name: Verify GTK4 environment
+    - name: Verify Python environment
       run: |
-        echo "Verifying build environment..."
-        python3 -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk; print('✅ GTK4 ready for build')"
+        echo "Python version: $(python3 --version)"
+        echo "Python path: $(which python3)"
           
-    - name: Build executable
+    - name: Build executable  
       run: |
         echo "Building Task Tracker executable..."
-        python3 build.py
+        ./ci-build.sh
         
     - name: Compress executable with UPX
       run: |
