@@ -1,0 +1,197 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - master      # Build on master branch updates
+    tags:
+      - 'v*'        # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual triggering
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build Task Tracker (${{ startsWith(github.ref, 'refs/tags/') && 'Release' || 'Development' }})
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    strategy:
+      matrix:
+        # Build on different Ubuntu versions for compatibility
+        ubuntu-version: ['20.04', '22.04', '24.04']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-gi \
+          python3-gi-cairo \
+          gir1.2-gtk-4.0 \
+          wmctrl \
+          upx-ucl
+          
+    - name: Build executable
+      run: |
+        echo "Building Task Tracker executable..."
+        python3 build.py
+        
+    - name: Compress executable with UPX
+      run: |
+        upx --best --lzma dist/task-tracker || true
+        
+    - name: Test executable
+      run: |
+        echo "Testing executable..."
+        ./dist/task-tracker --help
+        
+    - name: Get file info
+      run: |
+        ls -lh dist/task-tracker
+        file dist/task-tracker
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: task-tracker-ubuntu-${{ matrix.ubuntu-version }}${{ startsWith(github.ref, 'refs/tags/') && '' || '-dev' }}
+        path: dist/task-tracker
+        retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 30 || 7 }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    # Only create releases for tags or manual dispatch, not regular branch pushes
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+        
+    - name: Prepare release files
+      run: |
+        mkdir -p release-files
+        
+        # Rename executables with version info
+        for dir in artifacts/*/; do
+          if [ -f "$dir/task-tracker" ]; then
+            version_name=$(basename "$dir" | sed 's/task-tracker-//')
+            cp "$dir/task-tracker" "release-files/task-tracker-${version_name}"
+            chmod +x "release-files/task-tracker-${version_name}"
+          fi
+        done
+        
+        # Create a universal executable (use Ubuntu 22.04 as default)
+        if [ -f "release-files/task-tracker-ubuntu-22.04" ]; then
+          cp "release-files/task-tracker-ubuntu-22.04" "release-files/task-tracker"
+          chmod +x "release-files/task-tracker"
+        fi
+        
+        ls -la release-files/
+        
+    - name: Determine version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        release_name: Task Tracker ${{ steps.version.outputs.version }}
+        body: |
+          ## Task Tracker ${{ steps.version.outputs.version }}
+          
+          A lightweight Linux desktop application for managing markdown task lists with interactive checkboxes.
+          
+          ### Download Options:
+          
+          - **task-tracker** - Universal executable (recommended, ~50-70MB after compression)
+          - **task-tracker-ubuntu-XX.XX** - Version-specific executables
+          
+          ### System Requirements:
+          - Linux x86_64 with GTK4 libraries (usually pre-installed)
+          - Optional: wmctrl for always-on-top functionality (`sudo apt install wmctrl`)
+          
+          ### Usage:
+          1. Download the `task-tracker` executable
+          2. Make it executable: `chmod +x task-tracker`
+          3. Run: `./task-tracker`
+          
+          ### Features:
+          - Interactive markdown task list management
+          - Auto-save changes to source files
+          - Smart window resizing
+          - Always-on-top mode
+          - Modern GTK4 interface
+          - File persistence and settings
+          
+          Built from commit ${{ github.sha }}
+        draft: false
+        prerelease: false
+        
+    - name: Upload Universal Executable
+      if: steps.create_release.outcome == 'success'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release-files/task-tracker
+        asset_name: task-tracker
+        asset_content_type: application/octet-stream
+        
+    - name: Upload Ubuntu 20.04 Executable
+      if: steps.create_release.outcome == 'success'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release-files/task-tracker-ubuntu-20.04
+        asset_name: task-tracker-ubuntu-20.04
+        asset_content_type: application/octet-stream
+        
+    - name: Upload Ubuntu 22.04 Executable
+      if: steps.create_release.outcome == 'success'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release-files/task-tracker-ubuntu-22.04
+        asset_name: task-tracker-ubuntu-22.04
+        asset_content_type: application/octet-stream
+        
+    - name: Upload Ubuntu 24.04 Executable
+      if: steps.create_release.outcome == 'success'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release-files/task-tracker-ubuntu-24.04
+        asset_name: task-tracker-ubuntu-24.04
+        asset_content_type: application/octet-stream

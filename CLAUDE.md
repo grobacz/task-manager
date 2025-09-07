@@ -5,6 +5,13 @@ A lightweight Linux desktop application that displays tasks from a markdown file
 
 ## Current Implementation Status: ✅ COMPLETE
 
+### Distribution Options (Implemented)
+- ✅ **Standalone Executable**: PyInstaller-based single-file distribution (~50-70MB compressed)
+- ✅ **Source Distribution**: Traditional Python package with dependencies
+- ✅ **Build System**: Automated build script with virtual environment management
+- ✅ **GitHub Actions**: Automated CI/CD with multi-platform builds and releases
+- ✅ **Release Management**: Automatic release creation with compressed executables
+
 ### Core Features (Implemented)
 - ✅ **Task Display**: Renders markdown checklist items (`- [ ]` / `- [x]`) as interactive checkboxes
 - ✅ **Real-time File Updates**: Checkbox interactions immediately modify source markdown file
@@ -39,17 +46,36 @@ A lightweight Linux desktop application that displays tasks from a markdown file
 ## Current File Structure
 ```
 task-tracker/
+├── .github/workflows/
+│   ├── build-release.yml   # GitHub Actions release workflow
+│   ├── test-build.yml      # GitHub Actions test workflow
+│   └── RELEASE_GUIDE.md    # Release creation guide
 ├── src/
 │   ├── main.py           # GTK4 application and UI
 │   ├── task_parser.py    # Markdown parsing and file operations  
 │   └── settings.py       # Configuration persistence
+├── build.py             # PyInstaller build script
+├── release.sh           # Local release creation script
+├── task-tracker.spec    # PyInstaller configuration
 ├── requirements.txt      # Python dependencies
-├── Makefile             # Setup automation
+├── Makefile             # Setup and build automation
 ├── tasks.md             # Sample task file
+├── README.md            # User documentation
 └── CLAUDE.md           # This documentation
 ```
 
 ## Usage
+
+### Standalone Executable (Recommended)
+```bash
+# Build standalone executable
+make build
+
+# Run executable (no dependencies needed on target systems)
+./dist/task-tracker
+```
+
+### Development/Source Mode
 ```bash
 # Setup (one-time)
 make install
@@ -59,10 +85,27 @@ make run
 # or directly: python src/main.py
 ```
 
+### Release Management
+```bash
+# Create local release package
+make release
+
+# Create GitHub release (requires repository)
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 ## Requirements
-- **OS**: Linux with X11 (tested on Ubuntu/GNOME)
-- **Dependencies**: GTK4, Python 3.x, wmctrl
-- **Python Packages**: PyGObject, watchdog
+
+### For Standalone Executable
+- **OS**: Linux with X11 (Ubuntu, Fedora, etc.)
+- **System Libraries**: GTK4 (usually pre-installed)
+- **Optional**: wmctrl for always-on-top functionality
+
+### For Building from Source
+- **OS**: Linux with X11 (tested on Ubuntu/GNOME)  
+- **Build Dependencies**: Python 3.x, GTK4 development packages
+- **Python Packages**: PyGObject, watchdog, pyinstaller
 
 ## Technical Notes
 - **Task Pattern**: `^(\s*)-\s\[([ x])\]\s(.+)$` for markdown parsing
