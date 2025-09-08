@@ -103,7 +103,7 @@ jobs:
         cp dist/task-tracker dist/task-tracker.backup
         
         # Try UPX compression with less aggressive settings (PyInstaller compatibility)
-        if upx --ultra-brute dist/task-tracker; then
+        if upx --lzma dist/task-tracker; then
           echo "✅ UPX compression successful"
         else
           echo "⚠️ UPX compression failed, trying basic compression..."
