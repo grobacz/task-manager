@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         # Build on different Ubuntu versions for compatibility
-        ubuntu-version: ['20.04', '22.04', '24.04']
+        ubuntu-version: ['22.04', '24.04']
         
     steps:
     - name: Checkout code
@@ -66,22 +66,58 @@ jobs:
         gi.require_version('Gtk', '4.0')  
         from gi.repository import Gtk
         print('✅ GTK4 imported successfully')
-        "
+        " || {
+          echo "❌ GTK4 import failed - build cannot continue"
+          exit 1
+        }
         
         # Run the build
         echo "🚀 Starting build process..."
-        python3 build.py
+        if python3 build.py; then
+          echo "✅ CI build completed successfully!"
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
         
-        echo "✅ CI build completed successfully!"
+        # Verify the executable was created
+        if [ ! -f "dist/task-tracker" ]; then
+          echo "❌ Executable not found at dist/task-tracker"
+          exit 1
+        fi
+        
+    - name: Test executable (pre-compression)
+      run: |
+        echo "Testing executable before compression..."
+        ls -lh dist/task-tracker
+        file dist/task-tracker
+        ./dist/task-tracker --help || {
+          echo "❌ Executable failed before compression - aborting UPX"
+          exit 1
+        }
         
     - name: Compress executable with UPX
       run: |
-        upx --best --lzma dist/task-tracker || true
+        echo "Compressing executable with UPX..."
+        # Create backup before compression
+        cp dist/task-tracker dist/task-tracker.backup
         
-    - name: Test executable
+        # Try UPX compression with fallback
+        if upx --best --lzma dist/task-tracker; then
+          echo "✅ UPX compression successful"
+        else
+          echo "⚠️ UPX compression failed, using uncompressed version"
+          cp dist/task-tracker.backup dist/task-tracker
+        fi
+        
+    - name: Test executable (post-compression)
       run: |
-        echo "Testing executable..."
-        ./dist/task-tracker --help
+        echo "Testing final executable..."
+        ./dist/task-tracker --help || {
+          echo "❌ Executable corrupted by UPX - restoring backup"
+          cp dist/task-tracker.backup dist/task-tracker
+          ./dist/task-tracker --help
+        }
         
     - name: Get file info
       run: |
@@ -180,6 +216,5 @@ jobs:
         prerelease: false
         files: |
           release-files/task-tracker
-          release-files/task-tracker-ubuntu-20.04
           release-files/task-tracker-ubuntu-22.04
           release-files/task-tracker-ubuntu-24.04
