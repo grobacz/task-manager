@@ -54,14 +54,46 @@ def main():
         
         # Install PyInstaller in system Python (CI environment)
         print("Installing PyInstaller in system Python...")
-        subprocess.check_call([
-            python_exe, '-m', 'pip', 'install', 
-            '--break-system-packages',  # Required for externally-managed environments like GitHub Actions
-            'pyinstaller>=5.0.0', 'watchdog>=3.0.0'
-        ])
         
-        # Use system PyInstaller
-        pyinstaller_exe = 'pyinstaller'
+        # Try with --break-system-packages first (for Python 3.11+)
+        try:
+            subprocess.check_call([
+                python_exe, '-m', 'pip', 'install', 
+                '--break-system-packages',
+                'pyinstaller>=5.0.0', 'watchdog>=3.0.0'
+            ])
+        except subprocess.CalledProcessError:
+            # Fallback for older Python versions (3.10 and below)
+            print("Retrying without --break-system-packages flag...")
+            try:
+                subprocess.check_call([
+                    python_exe, '-m', 'pip', 'install', 
+                    '--user',  # Install to user directory as fallback
+                    'pyinstaller>=5.0.0', 'watchdog>=3.0.0'
+                ])
+            except subprocess.CalledProcessError:
+                # Final fallback - try without any special flags
+                print("Retrying with basic pip install...")
+                subprocess.check_call([
+                    python_exe, '-m', 'pip', 'install', 
+                    'pyinstaller>=5.0.0', 'watchdog>=3.0.0'
+                ])
+        
+        # Find PyInstaller executable
+        try:
+            # Try to find pyinstaller in PATH (system or user install)
+            result = subprocess.run(['which', 'pyinstaller'], capture_output=True, text=True)
+            if result.returncode == 0:
+                pyinstaller_exe = 'pyinstaller'
+            else:
+                # Check user local bin
+                user_bin = os.path.expanduser('~/.local/bin/pyinstaller')
+                if os.path.exists(user_bin):
+                    pyinstaller_exe = user_bin
+                else:
+                    pyinstaller_exe = 'pyinstaller'  # Fallback
+        except:
+            pyinstaller_exe = 'pyinstaller'  # Fallback
         
     else:
         print("🔧 Local environment detected - using virtual environment")

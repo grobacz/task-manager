@@ -34,8 +34,21 @@ jobs:
           
     - name: Test build process
       run: |
-        echo "Testing build process..."
-        ./ci-build.sh
+        echo "🔧 Setting up CI build environment..."
+        
+        # Set Python path to include system packages
+        export PYTHONPATH="/usr/lib/python3/dist-packages:/usr/lib/python3.12/dist-packages:$PYTHONPATH"
+        
+        # Add user local bin to PATH for PyInstaller
+        export PATH="$HOME/.local/bin:$PATH"
+        
+        # Test GTK4 availability
+        echo "Testing GTK4 imports..."
+        python3 -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk; print('✅ GTK4 ready')"
+        
+        # Run the build
+        echo "🚀 Starting build process..."
+        python3 build.py
         
     - name: Verify executable
       run: |

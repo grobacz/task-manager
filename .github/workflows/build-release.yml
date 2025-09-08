@@ -46,8 +46,33 @@ jobs:
           
     - name: Build executable  
       run: |
-        echo "Building Task Tracker executable..."
-        ./ci-build.sh
+        echo "🔧 Setting up CI build environment..."
+        
+        # Set Python path to include system packages
+        export PYTHONPATH="/usr/lib/python3/dist-packages:/usr/lib/python3.12/dist-packages:$PYTHONPATH"
+        
+        # Add user local bin to PATH for PyInstaller
+        export PATH="$HOME/.local/bin:$PATH"
+        
+        # Verify environment
+        echo "Python version: $(python3 --version)"
+        echo "PYTHONPATH: $PYTHONPATH"
+        
+        # Test GTK4 availability
+        echo "Testing GTK4 imports..."
+        python3 -c "
+        import gi
+        print('✅ gi imported from:', gi.__file__)
+        gi.require_version('Gtk', '4.0')  
+        from gi.repository import Gtk
+        print('✅ GTK4 imported successfully')
+        "
+        
+        # Run the build
+        echo "🚀 Starting build process..."
+        python3 build.py
+        
+        echo "✅ CI build completed successfully!"
         
     - name: Compress executable with UPX
       run: |
@@ -117,13 +142,12 @@ jobs:
         fi
         
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.version.outputs.version }}
-        release_name: Task Tracker ${{ steps.version.outputs.version }}
+        name: Task Tracker ${{ steps.version.outputs.version }}
         body: |
           ## Task Tracker ${{ steps.version.outputs.version }}
           
@@ -154,47 +178,8 @@ jobs:
           Built from commit ${{ github.sha }}
         draft: false
         prerelease: false
-        
-    - name: Upload Universal Executable
-      if: steps.create_release.outcome == 'success'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./release-files/task-tracker
-        asset_name: task-tracker
-        asset_content_type: application/octet-stream
-        
-    - name: Upload Ubuntu 20.04 Executable
-      if: steps.create_release.outcome == 'success'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./release-files/task-tracker-ubuntu-20.04
-        asset_name: task-tracker-ubuntu-20.04
-        asset_content_type: application/octet-stream
-        
-    - name: Upload Ubuntu 22.04 Executable
-      if: steps.create_release.outcome == 'success'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./release-files/task-tracker-ubuntu-22.04
-        asset_name: task-tracker-ubuntu-22.04
-        asset_content_type: application/octet-stream
-        
-    - name: Upload Ubuntu 24.04 Executable
-      if: steps.create_release.outcome == 'success'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./release-files/task-tracker-ubuntu-24.04
-        asset_name: task-tracker-ubuntu-24.04
-        asset_content_type: application/octet-stream
+        files: |
+          release-files/task-tracker
+          release-files/task-tracker-ubuntu-20.04
+          release-files/task-tracker-ubuntu-22.04
+          release-files/task-tracker-ubuntu-24.04
